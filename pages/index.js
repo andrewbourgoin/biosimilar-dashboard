@@ -63,6 +63,14 @@ export default function FDAApprovalOverview() {
       )
     : [];
 
+  const allPresentations = Array.from(
+  new Set(
+    filtered.flatMap(p =>
+      (presentationsMap[p.id] || []).map(pr => pr.name)
+    )
+  )
+).sort();
+
   return (
     <div className="page-wrapper">
       <header className="header">
