@@ -54,8 +54,11 @@ export default function FDAApprovalOverview() {
     ? Array.from(
         new Map(
           products
-            .filter(p => p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id)
-            .reduce((acc, p) => acc.set(p.id, p), new Map()) // de-duplicate by ID
+            .filter(p =>
+              p.reference_product === referenceProduct.proprietary_name ||
+              p.id === referenceProduct.id
+            )
+            .map(p => [p.proprietary_name + p.applicant, p]) // de-duplicate by proprietary_name + applicant combo
         ).values()
       )
       .sort((a, b) => {
