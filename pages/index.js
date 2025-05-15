@@ -1,8 +1,8 @@
-// Final visual layout for FDA Approval Overview – Matching mockup design
-// Uses: logo/header, intro section, reference selector, matrix layout
+// FDA Approval Overview – Fix reference selection to show correct product sets
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import '../styles/style.css';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -13,7 +13,7 @@ export default function FDAApprovalOverview() {
   const [products, setProducts] = useState([]);
   const [presentationsMap, setPresentationsMap] = useState({});
   const [referenceProducts, setReferenceProducts] = useState([]);
-  const [selectedRef, setSelectedRef] = useState('Humira');
+  const [selectedRef, setSelectedRef] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +26,9 @@ export default function FDAApprovalOverview() {
         .from('presentations')
         .select('*');
 
-      const refSet = Array.from(new Set(productsData.map(p => p.reference_product))).sort();
+      const referenceSet = productsData
+        .filter(p => p.bla_type === '351(a)')
+        .map(p => p.proprietary_name);
 
       const grouped = presentationsData?.reduce((acc, pres) => {
         if (!acc[pres.product_id]) acc[pres.product_id] = [];
@@ -36,13 +38,17 @@ export default function FDAApprovalOverview() {
 
       setProducts(productsData || []);
       setPresentationsMap(grouped || {});
-      setReferenceProducts(refSet);
+      setReferenceProducts(referenceSet);
+      setSelectedRef(referenceSet[0] || '');
       setLoading(false);
     }
     fetchData();
   }, []);
 
-  const filtered = products.filter(p => p.reference_product === selectedRef);
+  const filtered = products.filter(
+    p => p.proprietary_name === selectedRef || p.reference_product === selectedRef
+  );
+
   const allPresentations = Array.from(
     new Set(
       filtered.flatMap(p => (presentationsMap[p.id] || []).map(pr => pr.name))
@@ -112,7 +118,7 @@ export default function FDAApprovalOverview() {
                   {filtered.map((product) => (
                     <tr
                       key={product.id}
-                      className={product.bla_type.includes("351(a)") ? 'reference-product-row' : ''}
+                      className={product.bla_type === '351(a)' ? 'reference-product-row' : ''}
                     >
                       <td>{product.proprietary_name}</td>
                       <td>{product.applicant}</td>
@@ -125,7 +131,13 @@ export default function FDAApprovalOverview() {
                           else if (match.marketing_status === 'RX') cls = 'status-biosimilar';
                           else cls = 'status-interchangeable';
                         }
-                        const label = product.bla_type.includes("351(a)") ? 'R' : match?.marketing_status === 'Discontinued' ? 'D' : match?.marketing_status === 'OTC' ? 'I' : 'B';
+                        const label = product.bla_type === '351(a)'
+                          ? 'R'
+                          : match?.marketing_status === 'Discontinued'
+                          ? 'D'
+                          : match?.marketing_status === 'OTC'
+                          ? 'I'
+                          : 'B';
                         return (
                           <td key={idx}>
                             <span className={`cell-status-label ${cls}`}>{match ? label : ''}</span>
