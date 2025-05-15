@@ -1,8 +1,9 @@
-// Updated React-based FDA Approval Overview Page
-// Matches uploaded visual style and integrates Supabase data
+// Final visual layout for FDA Approval Overview – Matching mockup design
+// Uses: logo/header, intro section, reference selector, matrix layout
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import '../styles/style.css';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -11,79 +12,139 @@ const supabase = createClient(
 
 export default function FDAApprovalOverview() {
   const [products, setProducts] = useState([]);
+  const [presentationsMap, setPresentationsMap] = useState({});
+  const [referenceProducts, setReferenceProducts] = useState([]);
+  const [selectedRef, setSelectedRef] = useState('Humira');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
-      const { data, error } = await supabase
+      const { data: productsData } = await supabase
         .from('biosimilar_products')
-        .select('id, proprietary_name, applicant, reference_product, bla_type, approval_date');
-      if (!error) setProducts(data);
+        .select('*');
+
+      const { data: presentationsData } = await supabase
+        .from('presentations')
+        .select('*');
+
+      const refSet = Array.from(new Set(productsData.map(p => p.reference_product))).sort();
+
+      const grouped = presentationsData?.reduce((acc, pres) => {
+        if (!acc[pres.product_id]) acc[pres.product_id] = [];
+        acc[pres.product_id].push(pres);
+        return acc;
+      }, {});
+
+      setProducts(productsData || []);
+      setPresentationsMap(grouped || {});
+      setReferenceProducts(refSet);
       setLoading(false);
     }
     fetchData();
   }, []);
 
+  const filtered = products.filter(p => p.reference_product === selectedRef);
+  const allPresentations = Array.from(
+    new Set(
+      filtered.flatMap(p => (presentationsMap[p.id] || []).map(pr => pr.name))
+    )
+  ).sort();
+
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-800">
-      <header className="bg-blue-900 text-white p-6 shadow-md">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="text-2xl font-bold">ALL THINGS BIOSIMILAR</div>
-          <nav className="space-x-6 text-sm">
-            <a href="#" className="hover:text-gray-300">Home</a>
-            <a href="#" className="font-semibold border-b-2 border-white">FDA Approval Overview</a>
-            <a href="#" className="hover:text-gray-300">Savings Tool</a>
-            <a href="#" className="hover:text-gray-300">Forecasting</a>
-          </nav>
+    <div className="page-wrapper">
+      <header className="header">
+        <div className="logo-container">
+          <img src="/placeholder-logo.jpg" alt="Logo" className="logo-image" />
+        </div>
+        <div className="navigation-menu">
+          <span className="menu-placeholder">FDA Approval Overview</span>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6">
-        <h1 className="text-3xl font-semibold mb-6">FDA-Approved Biosimilars</h1>
-        {loading ? (
-          <p>Loading data...</p>
-        ) : (
-          <div className="space-y-6">
-            {products.map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+      <main className="main-content-area">
+        <div className="intro-section">
+          <div className="intro-logo-container">
+            <img src="/placeholder-logo.jpg" className="intro-logo-image" alt="Intro Logo" />
           </div>
-        )}
-      </main>
-    </div>
-  );
-}
+          <div className="intro-text-container">
+            <h2>Navigating the Biosimilar Landscape</h2>
+            <p>This tool provides an overview of the FDA-approved biosimilars for various reference products. Select a reference product below to view its competitive landscape, including approved biosimilars, their applicants, and key characteristics.</p>
+            <div className="legend-container">
+              <h3>Legend:</h3>
+              <ul className="legend-list">
+                <li><span className="cell-status-label status-reference">R</span> = Reference Product</li>
+                <li><span className="cell-status-label status-biosimilar">B</span> = Biosimilar</li>
+                <li><span className="cell-status-label status-interchangeable">I</span> = Interchangeable</li>
+                <li><span className="cell-status-label status-discontinued">D</span> = Discontinued</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
-function ProductCard({ product }) {
-  const [presentations, setPresentations] = useState([]);
-
-  useEffect(() => {
-    async function fetchPresentations() {
-      const { data } = await supabase
-        .from('presentations')
-        .select('name, approved, marketing_status')
-        .eq('product_id', product.id);
-      if (data) setPresentations(data);
-    }
-    fetchPresentations();
-  }, [product.id]);
-
-  return (
-    <div className="border border-gray-200 rounded-lg p-4 shadow-sm">
-      <h2 className="text-xl font-bold text-blue-900 mb-1">{product.proprietary_name}</h2>
-      <p className="text-sm text-gray-600">Applicant: {product.applicant}</p>
-      <p className="text-sm text-gray-600">Reference Product: {product.reference_product}</p>
-      <p className="text-sm text-gray-600">Approval Date: {product.approval_date || 'N/A'}</p>
-      <div className="mt-3">
-        <h3 className="font-medium text-sm text-gray-700 mb-1">Presentations</h3>
-        <ul className="list-disc ml-5 text-sm text-gray-800">
-          {presentations.map((pres, idx) => (
-            <li key={idx}>
-              {pres.name} – {pres.approved ? '✔️ Approved' : '❌ Not Approved'} ({pres.marketing_status})
-            </li>
+        <div className="market-selection-area">
+          {referenceProducts.map((ref, idx) => (
+            <button
+              key={idx}
+              className={`market-tile ${ref === selectedRef ? 'active' : ''}`}
+              onClick={() => setSelectedRef(ref)}
+            >
+              {ref}
+            </button>
           ))}
-        </ul>
-      </div>
+        </div>
+
+        <div className="main-content-area">
+          <h1>{selectedRef} Market FDA Approval Overview</h1>
+          {loading ? (
+            <p>Loading...</p>
+          ) : (
+            <div className="table-container">
+              <table id="comparison-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Applicant</th>
+                    {allPresentations.map((pres, i) => (
+                      <th key={i}>{pres}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((product) => (
+                    <tr
+                      key={product.id}
+                      className={product.bla_type.includes("351(a)") ? 'reference-product-row' : ''}
+                    >
+                      <td>{product.proprietary_name}</td>
+                      <td>{product.applicant}</td>
+                      {allPresentations.map((pres, idx) => {
+                        const match = (presentationsMap[product.id] || []).find(p => p.name === pres);
+                        let cls = 'status-unknown';
+                        if (match) {
+                          if (match.marketing_status === 'Discontinued') cls = 'status-discontinued';
+                          else if (!match.approved) cls = 'status-unknown';
+                          else if (match.marketing_status === 'RX') cls = 'status-biosimilar';
+                          else cls = 'status-interchangeable';
+                        }
+                        const label = product.bla_type.includes("351(a)") ? 'R' : match?.marketing_status === 'Discontinued' ? 'D' : match?.marketing_status === 'OTC' ? 'I' : 'B';
+                        return (
+                          <td key={idx}>
+                            <span className={`cell-status-label ${cls}`}>{match ? label : ''}</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <footer>
+        <p>© {new Date().getFullYear()} Bourgoin Insights Group. All rights reserved.</p>
+      </footer>
     </div>
   );
 }
