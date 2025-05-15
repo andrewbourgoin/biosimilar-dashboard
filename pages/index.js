@@ -25,9 +25,13 @@ export default function FDAApprovalOverview() {
         .from('presentations')
         .select('*');
 
-      const referenceSet = productsData
-        .filter(p => p.bla_type === '351(a)')
-        .map(p => p.proprietary_name);
+      const referenceSet = Array.from(
+        new Set(
+          productsData
+            .filter(p => p.bla_type === '351(a)')
+            .map(p => p.proprietary_name)
+        )
+      );
 
       const grouped = presentationsData?.reduce((acc, pres) => {
         if (!acc[pres.product_id]) acc[pres.product_id] = [];
@@ -50,7 +54,7 @@ export default function FDAApprovalOverview() {
     ? Array.from(
         new Map(
           products
-            .filter(p => (p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id))
+            .filter(p => p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id)
             .sort((a, b) => {
               if (a.id === referenceProduct.id) return -1;
               if (b.id === referenceProduct.id) return 1;
@@ -58,7 +62,7 @@ export default function FDAApprovalOverview() {
               const bPres = presentationsMap[b.id]?.filter(p => p.approved)?.length || 0;
               return bPres - aPres;
             })
-            .map(p => [p.proprietary_name, p])
+            .map(p => [p.id, p]) // key by id to avoid duplicate rows
         ).values()
       )
     : [];
@@ -146,7 +150,7 @@ export default function FDAApprovalOverview() {
                             cls = 'status-discontinued';
                           } else if (!match.approved) {
                             cls = 'status-unknown';
-                          } else if (product.approval_type?.toLowerCase().includes('interchangeable')) {
+                          } else if (product.bla_type?.toLowerCase().includes('interchangeable')) {
                             cls = 'status-interchangeable';
                           } else {
                             cls = 'status-biosimilar';
@@ -156,7 +160,7 @@ export default function FDAApprovalOverview() {
                           ? 'R'
                           : match?.marketing_status === 'Discontinued'
                           ? 'D'
-                          : product.approval_type?.toLowerCase().includes('interchangeable')
+                          : product.bla_type?.toLowerCase().includes('interchangeable')
                           ? 'I'
                           : 'B';
                         return (
