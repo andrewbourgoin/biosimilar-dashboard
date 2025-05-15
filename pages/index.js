@@ -50,19 +50,22 @@ export default function FDAApprovalOverview() {
 
   const referenceProduct = products.find(p => p.proprietary_name === selectedRef && p.bla_type === '351(a)');
 
-const filtered = referenceProduct
-  ? Array.from(
-      new Map(
-        products
-          .filter(p =>
-            p.reference_product === referenceProduct.proprietary_name ||
-            (p.bla_type === '351(a)' && p.proprietary_name === referenceProduct.proprietary_name)
-          )
-          .sort((a, b) => new Date(b.inserted_at) - new Date(a.inserted_at)) // prioritize most recent
-          .map(p => [`${p.proprietary_name}|${p.applicant}`, p]) // better dedupe key
-      ).values()
-    )
-      .sort((a, b) => {
+  const filtered = referenceProduct
+    ? Array.from(
+        new Map(
+          products
+            .filter(p =>
+              p.reference_product === referenceProduct.proprietary_name ||
+              (p.bla_type === '351(a)' && p.proprietary_name === referenceProduct.proprietary_name)
+            )
+            .sort((a, b) => new Date(b.inserted_at) - new Date(a.inserted_at))
+            .reduce((map, p) => {
+              const key = `${p.proprietary_name}|${p.applicant}`;
+              if (!map.has(key)) map.set(key, p);
+              return map;
+            }, new Map())
+        ).values()
+      ).sort((a, b) => {
         if (a.id === referenceProduct.id) return -1;
         if (b.id === referenceProduct.id) return 1;
         const aPres = presentationsMap[a.id]?.filter(p => p.approved)?.length || 0;
