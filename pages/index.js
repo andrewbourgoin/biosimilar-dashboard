@@ -55,16 +55,16 @@ export default function FDAApprovalOverview() {
         new Map(
           products
             .filter(p => p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id)
-            .sort((a, b) => {
-              if (a.id === referenceProduct.id) return -1;
-              if (b.id === referenceProduct.id) return 1;
-              const aPres = presentationsMap[a.id]?.filter(p => p.approved)?.length || 0;
-              const bPres = presentationsMap[b.id]?.filter(p => p.approved)?.length || 0;
-              return bPres - aPres;
-            })
-            .map(p => [p.id, p]) // key by id to avoid duplicate rows
+            .reduce((acc, p) => acc.set(p.id, p), new Map()) // de-duplicate by ID
         ).values()
       )
+      .sort((a, b) => {
+        if (a.id === referenceProduct.id) return -1;
+        if (b.id === referenceProduct.id) return 1;
+        const aPres = presentationsMap[a.id]?.filter(p => p.approved)?.length || 0;
+        const bPres = presentationsMap[b.id]?.filter(p => p.approved)?.length || 0;
+        return bPres - aPres;
+      })
     : [];
 
   const allPresentations = Array.from(
