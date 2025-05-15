@@ -127,10 +127,11 @@ export default function FDAApprovalOverview() {
                         const match = (presentationsMap[product.id] || []).find(p => p.name === pres);
                         let cls = 'status-unknown';
                         if (match) {
-                          if (match.marketing_status === 'Discontinued') cls = 'status-discontinued';
+                          if (product.bla_type === '351(a)') cls = 'status-reference';
+                          else if (match.marketing_status === 'Discontinued') cls = 'status-discontinued';
                           else if (!match.approved) cls = 'status-unknown';
-                          else if (match.marketing_status === 'RX') cls = 'status-biosimilar';
-                          else cls = 'status-interchangeable';
+                          else if (match.marketing_status === 'OTC') cls = 'status-interchangeable';
+                          else cls = 'status-biosimilar';
                         }
                         const label = product.bla_type === '351(a)'
                           ? 'R'
