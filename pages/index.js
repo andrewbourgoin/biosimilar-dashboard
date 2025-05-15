@@ -50,7 +50,7 @@ export default function FDAApprovalOverview() {
     ? Array.from(
         new Map(
           products
-            .filter(p => (p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id) && (presentationsMap[p.id] && presentationsMap[p.id].length > 0))
+            .filter(p => (p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id))
             .sort((a, b) => {
               if (a.id === referenceProduct.id) return -1;
               if (b.id === referenceProduct.id) return 1;
@@ -64,12 +64,10 @@ export default function FDAApprovalOverview() {
     : [];
 
   const allPresentations = Array.from(
-  new Set(
-    filtered.flatMap(p =>
-      (presentationsMap[p.id] || []).map(pr => pr.name)
+    new Set(
+      filtered.flatMap(p => (presentationsMap[p.id] || []).map(pr => pr.name))
     )
-  )
-).sort();
+  ).sort();
 
   return (
     <div className="page-wrapper">
@@ -142,17 +140,23 @@ export default function FDAApprovalOverview() {
                         const match = (presentationsMap[product.id] || []).find(p => p.name === pres);
                         let cls = 'status-unknown';
                         if (match) {
-                          if (product.bla_type === '351(a)') cls = 'status-reference';
-                          else if (match.marketing_status === 'Discontinued') cls = 'status-discontinued';
-                          else if (!match.approved) cls = 'status-unknown';
-                          else if (match.approved && match.interchangeable) cls = 'status-interchangeable';
-                          else cls = 'status-biosimilar';
+                          if (product.bla_type === '351(a)') {
+                            cls = 'status-reference';
+                          } else if (match.marketing_status === 'Discontinued') {
+                            cls = 'status-discontinued';
+                          } else if (!match.approved) {
+                            cls = 'status-unknown';
+                          } else if (product.approval_type?.toLowerCase().includes('interchangeable')) {
+                            cls = 'status-interchangeable';
+                          } else {
+                            cls = 'status-biosimilar';
+                          }
                         }
                         const label = product.bla_type === '351(a)'
                           ? 'R'
                           : match?.marketing_status === 'Discontinued'
                           ? 'D'
-                          : match?.approved && match?.interchangeable
+                          : product.approval_type?.toLowerCase().includes('interchangeable')
                           ? 'I'
                           : 'B';
                         return (
