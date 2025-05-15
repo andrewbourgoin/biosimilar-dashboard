@@ -47,7 +47,10 @@ export default function FDAApprovalOverview() {
   const referenceProduct = products.find(p => p.proprietary_name === selectedRef && p.bla_type === '351(a)');
 
   const filtered = referenceProduct
-    ? products.filter(p => p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id)
+    ? products.filter(
+        p => (p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id)
+          && (presentationsMap[p.id] && presentationsMap[p.id].length > 0)
+      )
     : [];
 
   const allPresentations = Array.from(
