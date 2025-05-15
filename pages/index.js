@@ -47,17 +47,21 @@ export default function FDAApprovalOverview() {
   const referenceProduct = products.find(p => p.proprietary_name === selectedRef && p.bla_type === '351(a)');
 
   const filtered = referenceProduct
-    ? products.filter(
-        p => (p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id)
-          && (presentationsMap[p.id] && presentationsMap[p.id].length > 0)
+    ? Array.from(
+        new Map(
+          products
+            .filter(p => (p.reference_product === referenceProduct.proprietary_name || p.id === referenceProduct.id) && (presentationsMap[p.id] && presentationsMap[p.id].length > 0))
+            .sort((a, b) => {
+              if (a.id === referenceProduct.id) return -1;
+              if (b.id === referenceProduct.id) return 1;
+              const aPres = presentationsMap[a.id]?.filter(p => p.approved)?.length || 0;
+              const bPres = presentationsMap[b.id]?.filter(p => p.approved)?.length || 0;
+              return bPres - aPres;
+            })
+            .map(p => [p.proprietary_name, p])
+        ).values()
       )
     : [];
-
-  const allPresentations = Array.from(
-    new Set(
-      filtered.flatMap(p => (presentationsMap[p.id] || []).map(pr => pr.name))
-    )
-  ).sort();
 
   return (
     <div className="page-wrapper">
@@ -133,14 +137,14 @@ export default function FDAApprovalOverview() {
                           if (product.bla_type === '351(a)') cls = 'status-reference';
                           else if (match.marketing_status === 'Discontinued') cls = 'status-discontinued';
                           else if (!match.approved) cls = 'status-unknown';
-                          else if (match.marketing_status === 'OTC') cls = 'status-interchangeable';
+                          else if (match.approved && match.interchangeable) cls = 'status-interchangeable';
                           else cls = 'status-biosimilar';
                         }
                         const label = product.bla_type === '351(a)'
                           ? 'R'
                           : match?.marketing_status === 'Discontinued'
                           ? 'D'
-                          : match?.marketing_status === 'OTC'
+                          : match?.approved && match?.interchangeable
                           ? 'I'
                           : 'B';
                         return (
