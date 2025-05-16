@@ -1,7 +1,6 @@
-// FDA Approval Overview – Enhanced version with error handling and filtering
-
-import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+// pages/index.js or your main FDAApprovalOverview component file
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,139 +8,221 @@ const supabase = createClient(
 );
 
 export default function FDAApprovalOverview() {
-  const [products, setProducts] = useState([]);
-  const [presentationsMap, setPresentationsMap] = useState({});
-  const [referenceProducts, setReferenceProducts] = useState([]);
-  const [selectedRef, setSelectedRef] = useState('');
+  const [allProducts, setAllProducts] = useState([]);
+  const [allProductDetails, setAllProductDetails] = useState([]);
+  const [allApplicants, setAllApplicants] = useState([]);
+  const [allReferenceProductsMaster, setAllReferenceProductsMaster] = useState([]);
+
+  const [marketTiles, setMarketTiles] = useState([]);
+  const [selectedMarketTile, setSelectedMarketTile] = useState(""); // Stores ref_product_proprietary_name
+
+  const [tableHeaders, setTableHeaders] = useState([]); // Dynamic presentation headers
+  const [tableRows, setTableRows] = useState([]); // Data for the main table
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Initial data fetch for all necessary tables
   useEffect(() => {
-    async function fetchData() {
+    async function fetchInitialData() {
       try {
         setLoading(true);
         setError(null);
-        
-        // Get all products
-        const { data: productsData, error: productsError } = await supabase
-          .from('biosimilar_products')
-          .select('*');
-          
-        if (productsError) throw new Error(`Error fetching products: ${productsError.message}`);
-        
-        // Get all presentations
-        const { data: presentationsData, error: presentationsError } = await supabase
-          .from('presentations')
-          .select('*');
-          
-        if (presentationsError) throw new Error(`Error fetching presentations: ${presentationsError.message}`);
-        
-        // Find reference products that have biosimilars
-        const referenceSet = new Set();
-        const biosimilarReferenceProducts = new Set();
-        
-        // First identify all reference products
-        const referenceProducts = productsData.filter(p => p.bla_type === '351(a)');
-        
-        // Then identify which reference products have biosimilars
-        productsData.forEach(product => {
-          if (product.bla_type.includes('351(k)')) {
-            biosimilarReferenceProducts.add(product.reference_product);
-          }
-        });
-        
-        // Only include reference products that have biosimilars
-        referenceProducts.forEach(refProduct => {
-          if (biosimilarReferenceProducts.has(refProduct.reference_product)) {
-            referenceSet.add(refProduct.proprietary_name);
-          }
-        });
-        
-        const referenceArray = Array.from(referenceSet);
-        
-        // Group presentations by product_id
-        const grouped = presentationsData?.reduce((acc, pres) => {
-          if (!acc[pres.product_id]) acc[pres.product_id] = [];
-          acc[pres.product_id].push(pres);
-          return acc;
-        }, {});
 
-        setProducts(productsData || []);
-        setPresentationsMap(grouped || {});
-        setReferenceProducts(referenceArray);
-        setSelectedRef(referenceArray[0] || '');
+        const { data: applicantsData, error: applicantsError } = await supabase
+          .from("applicants")
+          .select("*");
+        if (applicantsError) throw new Error(`Fetching applicants: ${applicantsError.message}`);
+        setAllApplicants(applicantsData || []);
+
+        const { data: refProductsMasterData, error: refProductsMasterError } = await supabase
+          .from("reference_products")
+          .select("*");
+        if (refProductsMasterError) throw new Error(`Fetching reference_products master: ${refProductsMasterError.message}`);
+        setAllReferenceProductsMaster(refProductsMasterData || []);
+
+        const { data: productsData, error: productsError } = await supabase
+          .from("products")
+          .select("*");
+        if (productsError) throw new Error(`Fetching products: ${productsError.message}`);
+        setAllProducts(productsData || []);
+
+        const { data: productDetailsData, error: productDetailsError } = await supabase
+          .from("product_details")
+          .select("*");
+        if (productDetailsError) throw new Error(`Fetching product_details: ${productDetailsError.message}`);
+        setAllProductDetails(productDetailsData || []);
+
       } catch (err) {
-        console.error("Error fetching data:", err);
+        console.error("Error fetching initial data:", err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     }
-    
-    fetchData();
+    fetchInitialData();
   }, []);
 
-  const referenceProduct = products.find(
-    (p) => p.proprietary_name === selectedRef && p.bla_type === '351(a)'
-  );
+  // Effect to determine market tiles (reference products with biosimilars)
+  useEffect(() => {
+    if (allProducts.length > 0 && allReferenceProductsMaster.length > 0) {
+      const biosimilarRefProductIds = new Set(
+        allProducts
+          .filter(p => p.bla_type && (p.bla_type.includes("351(k) Biosimilar") || p.bla_type.includes("351(k) Interchangeable")))
+          .map(p => p.ref_product_id)
+          .filter(id => id !== null)
+      );
 
-  const filtered = referenceProduct
-    ? products.filter(
-        (p) =>
-          p.reference_product === referenceProduct.reference_product ||
-          (p.bla_type === '351(a)' &&
-            p.proprietary_name === referenceProduct.proprietary_name)
-      )
-    : [];
+      const tiles = allReferenceProductsMaster
+        .filter(rp => biosimilarRefProductIds.has(rp.ref_product_id))
+        .map(rp => rp.ref_product_proprietary_name)
+        .sort(); 
+      
+      setMarketTiles(tiles);
+      if (tiles.length > 0 && !selectedMarketTile) {
+        setSelectedMarketTile(tiles[0]);
+      }
+    }
+  }, [allProducts, allReferenceProductsMaster, selectedMarketTile]);
 
-  const deduped = Array.from(
-    new Map(
-      filtered.map((p) => [
-        `${p.proprietary_name.trim().toLowerCase()}|${p.applicant.trim().toLowerCase()}`,
-        p,
-      ])
-    ).values()
-  ).sort((a, b) => {
-    if (a.bla_type === '351(a)') return -1;
-    if (b.bla_type === '351(a)') return 1;
-    const aPres = presentationsMap[a.id]?.length || 0;
-    const bPres = presentationsMap[b.id]?.length || 0;
-    return bPres - aPres;
-  });
+  // Effect to update table when a market tile is selected or data changes
+  useEffect(() => {
+    if (!selectedMarketTile || allProducts.length === 0 || allProductDetails.length === 0 || allApplicants.length === 0 || allReferenceProductsMaster.length === 0) {
+      setTableHeaders([]);
+      setTableRows([]);
+      return;
+    }
+    setLoading(true);
+    setError(null);
 
-  const allPresentations = Array.from(
-    new Set(
-      deduped.flatMap((p) =>
-        (presentationsMap[p.id] || []).map((pres) => pres.name)
-      )
-    )
-  ).sort();
+    try {
+      // Find the selected master reference product entry
+      const selectedMasterRefProduct = allReferenceProductsMaster.find(
+        rp => rp.ref_product_proprietary_name === selectedMarketTile
+      );
+      if (!selectedMasterRefProduct) throw new Error(`Master reference product ${selectedMarketTile} not found.`);
 
-  if (error) {
+      // Find the actual reference product entry in the 'products' table
+      const actualRefProductEntry = allProducts.find(
+        p => p.proprietary_name === selectedMarketTile && p.bla_type === "351(a)"
+      );
+      if (!actualRefProductEntry) throw new Error(`Actual reference product entry for ${selectedMarketTile} (351(a)) not found in products table.`);
+
+      // 1. Determine Dynamic Table Headers (Presentations of the selected Reference Product)
+      const refProductPresentationsDetails = allProductDetails.filter(
+        pd => pd.product_id === actualRefProductEntry.product_id
+      );
+      
+      const uniquePresentations = Array.from(
+        new Set(
+          refProductPresentationsDetails.map(pd => `${pd.Strength} ${pd.product_presentation}`.trim())
+        )
+      ).sort(); 
+      setTableHeaders(uniquePresentations);
+
+      // 2. Prepare Table Rows
+      const rows = [];
+
+      // 2a. Add the Reference Product Row
+      const refApplicant = allApplicants.find(app => app.applicant_id === actualRefProductEntry.applicant_id);
+      const refRow = {
+        isReference: true,
+        proprietaryName: actualRefProductEntry.proprietary_name,
+        applicantName: refApplicant ? refApplicant.Applicant : "N/A",
+        presentations: {},
+      };
+      uniquePresentations.forEach(header => {
+        const detail = refProductPresentationsDetails.find(pd => `${pd.Strength} ${pd.product_presentation}`.trim() === header);
+        refRow.presentations[header] = detail ? "R" : ""; // Black R
+      });
+      rows.push(refRow);
+
+      // 2b. Add Biosimilar/Interchangeable Rows
+      const relatedBiosimilars = allProducts.filter(
+        p => p.ref_product_id === selectedMasterRefProduct.ref_product_id && 
+             p.product_id !== actualRefProductEntry.product_id && // Exclude the ref product itself
+             p.bla_type && (p.bla_type.includes("351(k) Biosimilar") || p.bla_type.includes("351(k) Interchangeable"))
+      );
+
+      relatedBiosimilars.forEach(bioProduct => {
+        const bioApplicant = allApplicants.find(app => app.applicant_id === bioProduct.applicant_id);
+        const bioRow = {
+          isReference: false,
+          proprietaryName: bioProduct.proprietary_name,
+          applicantName: bioApplicant ? bioApplicant.Applicant : "N/A",
+          presentations: {},
+        };
+        const bioProductDetails = allProductDetails.filter(pd => pd.product_id === bioProduct.product_id);
+        
+        uniquePresentations.forEach(header => {
+          const detail = bioProductDetails.find(pd => `${pd.Strength} ${pd.product_presentation}`.trim() === header);
+          if (detail) {
+            if (detail.marketing_status === "Disc" || detail.marketing_status === "Discontinued") {
+              bioRow.presentations[header] = "d"; // Grey d
+            } else if (bioProduct.bla_type.includes("351(k) Interchangeable")) {
+              bioRow.presentations[header] = "I"; // Green I
+            } else if (bioProduct.bla_type.includes("351(k) Biosimilar")) {
+              bioRow.presentations[header] = "B"; // Blue B
+            }
+          } else {
+            bioRow.presentations[header] = "";
+          }
+        });
+        rows.push(bioRow);
+      });
+      
+      setTableRows(rows);
+
+    } catch (err) {
+      console.error(`Error processing data for ${selectedMarketTile}:`, err);
+      setError(err.message);
+      setTableRows([]);
+      setTableHeaders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedMarketTile, allProducts, allProductDetails, allApplicants, allReferenceProductsMaster]);
+
+  if (error && !loading) { // Show general error if initial load failed, or specific error if processing tile failed
     return (
-      <div className="error-container">
-        <h2>Error Loading Data</h2>
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Try Again</button>
+      <div className="page-wrapper">
+         <header className="header">
+            <div className="logo-container">
+                <img src="/placeholder-logo.jpg" alt="All Things Biosimilar Logo" className="logo-image" />
+            </div>
+            <nav className="navigation-menu">
+                <span className="menu-placeholder">FDA Approval Overview</span>
+            </nav>
+        </header>
+        <main className="main-content-area">
+            <div className="error-container">
+                <h2>Error Loading Data</h2>
+                <p>{error}</p>
+                <button onClick={() => window.location.reload()}>Try Again</button>
+            </div>
+        </main>
+        <footer><p>© {new Date().getFullYear()} Bourgoin Insights Group. All rights reserved.</p></footer>
       </div>
     );
   }
-
+  
   return (
     <div className="page-wrapper">
       <header className="header">
         <div className="logo-container">
-          <img src="/placeholder-logo.jpg" alt="Logo" className="logo-image" />
+          {/* Replace with your actual logo if available, or a placeholder */}
+          <img src="/placeholder-logo.jpg" alt="All Things Biosimilar Logo" className="logo-image" />
         </div>
-        <div className="navigation-menu">
+        <nav className="navigation-menu">
+          {/* You can add actual navigation links here if needed */}
           <span className="menu-placeholder">FDA Approval Overview</span>
-        </div>
+        </nav>
       </header>
 
       <main className="main-content-area">
-        <div className="intro-section">
+        <section className="intro-section">
           <div className="intro-logo-container">
-            <img src="/placeholder-logo.jpg" className="intro-logo-image" alt="Intro Logo" />
+             <img src="/placeholder-logo.jpg" className="intro-logo-image" alt="Intro Logo" />
           </div>
           <div className="intro-text-container">
             <h2>Navigating the Biosimilar Landscape</h2>
@@ -152,82 +233,70 @@ export default function FDAApprovalOverview() {
                 <li><span className="cell-status-label status-reference">R</span> = Reference Product</li>
                 <li><span className="cell-status-label status-biosimilar">B</span> = Biosimilar</li>
                 <li><span className="cell-status-label status-interchangeable">I</span> = Interchangeable</li>
-                <li><span className="cell-status-label status-discontinued">D</span> = Discontinued</li>
+                <li><span className="cell-status-label status-discontinued">d</span> = Discontinued</li>
               </ul>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="market-selection-area">
-          {loading ? (
+        <section className="market-selection-area">
+          {loading && marketTiles.length === 0 ? (
             <div className="loading-indicator">Loading reference products...</div>
-          ) : (
-            referenceProducts.map((ref, idx) => (
+          ) : marketTiles.length > 0 ? (
+            marketTiles.map((tileName) => (
               <button
-                key={idx}
-                className={`market-tile ${ref === selectedRef ? 'active' : ''}`}
-                onClick={() => setSelectedRef(ref)}
+                key={tileName}
+                className={`market-tile ${tileName === selectedMarketTile ? "active" : ""}`}
+                onClick={() => setSelectedMarketTile(tileName)}
               >
-                {ref}
+                {tileName}
               </button>
             ))
+          ) : (
+             !loading && <div className="no-data-message">No reference products with biosimilars found.</div>
           )}
-        </div>
+        </section>
 
-        <div className="main-content-area">
-          <h1>{selectedRef} Market FDA Approval Overview</h1>
-          {loading ? (
+        <section className="main-table-section">
+          {selectedMarketTile && <h1>{selectedMarketTile} Market FDA Approval Overview</h1>}
+          {loading && selectedMarketTile ? (
             <div className="loading-container">
               <div className="loading-spinner"></div>
-              <p>Loading product data...</p>
+              <p>Loading product data for {selectedMarketTile}...</p>
             </div>
-          ) : (
+          ) : error && selectedMarketTile ? (
+             <div className="error-container">
+                <h2>Error Loading Data for {selectedMarketTile}</h2>
+                <p>{error}</p>
+            </div>
+          ) : tableRows.length > 0 && tableHeaders.length > 0 ? (
             <div className="table-container">
               <table id="comparison-table">
                 <thead>
-                  <tr>
-                    <th>Product</th>
+                  <tr style={{ backgroundColor: "#1e3a8a", color: "white" }}> 
+                    <th>Proprietary Name</th>
                     <th>Applicant</th>
-                    {allPresentations.map((pres, i) => (
-                      <th key={i}>{pres}</th>
+                    {tableHeaders.map((header) => (
+                      <th key={header}>{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {deduped.map((product) => (
-                    <tr
-                      key={product.id}
-                      className={product.bla_type === '351(a)' ? 'reference-product-row' : ''}
-                    >
-                      <td>{product.proprietary_name}</td>
-                      <td>{product.applicant}</td>
-                      {allPresentations.map((pres, idx) => {
-                        const match = (presentationsMap[product.id] || []).find(
-                          (p) => p.name === pres
-                        );
-
-                        let cls = 'status-unknown';
-                        let label = '';
-
-                        if (product.bla_type === '351(a)') {
-                          cls = 'status-reference';
-                          label = 'R';
-                        } else if (match) {
-                          if (match.marketing_status === 'Discontinued' || match.marketing_status === 'Disc') {
-                            cls = 'status-discontinued';
-                            label = 'D';
-                          } else if (product.bla_type.toLowerCase().includes('interchangeable')) {
-                            cls = 'status-interchangeable';
-                            label = 'I';
-                          } else {
-                            cls = 'status-biosimilar';
-                            label = 'B';
-                          }
-                        }
-
+                  {tableRows.map((row, rowIndex) => (
+                    <tr key={rowIndex} style={{ backgroundColor: row.isReference ? "#f0f0f0" : "white" }}>
+                      <td>{row.proprietaryName}</td>
+                      <td>{row.applicantName}</td>
+                      {tableHeaders.map((header) => {
+                        const status = row.presentations[header] || "";
+                        let className = "";
+                        if (status === "R") className = "status-reference";
+                        else if (status === "B") className = "status-biosimilar";
+                        else if (status === "I") className = "status-interchangeable";
+                        else if (status === "d") className = "status-discontinued";
+                        
                         return (
-                          <td key={idx}>
-                            <span className={`cell-status-label ${cls}`}>{match ? label : ''}</span>
+                          <td key={header}>
+                            {status && <span className={`cell-status-label ${className}`}>{status}</span>}
                           </td>
                         );
                       })}
@@ -236,8 +305,10 @@ export default function FDAApprovalOverview() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          ) : selectedMarketTile && !loading && !error ? (
+            <div className="no-data-message">No data available for {selectedMarketTile}.</div>
+          ) : null}
+        </section>
       </main>
 
       <footer>
