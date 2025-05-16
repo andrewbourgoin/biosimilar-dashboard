@@ -1,4 +1,4 @@
-// FDA Approval Overview – Fix reference selection to show correct product sets
+// FDA Approval Overview – Rebuilt to match cleaned Supabase structure
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -48,35 +48,39 @@ export default function FDAApprovalOverview() {
     fetchData();
   }, []);
 
-  const referenceProduct = products.find(p => p.proprietary_name === selectedRef && p.bla_type === '351(a)');
+  const referenceProduct = products.find(
+    (p) => p.proprietary_name === selectedRef && p.bla_type === '351(a)'
+  );
 
   const filtered = referenceProduct
-    ? Array.from(
-        new Map(
-          products
-            .filter(p =>
-              p.reference_product === referenceProduct.proprietary_name ||
-              (p.bla_type === '351(a)' && p.proprietary_name === referenceProduct.proprietary_name)
-            )
-            .sort((a, b) => new Date(b.inserted_at) - new Date(a.inserted_at))
-            .reduce((map, p) => {
-              const key = `${p.proprietary_name}|${p.applicant}`;
-              if (!map.has(key)) map.set(key, p);
-              return map;
-            }, new Map())
-        ).values()
-      ).sort((a, b) => {
-        if (a.id === referenceProduct.id) return -1;
-        if (b.id === referenceProduct.id) return 1;
-        const aPres = presentationsMap[a.id]?.filter(p => p.approved)?.length || 0;
-        const bPres = presentationsMap[b.id]?.filter(p => p.approved)?.length || 0;
-        return bPres - aPres;
-      })
+    ? products.filter(
+        (p) =>
+          p.reference_product === referenceProduct.reference_product ||
+          (p.bla_type === '351(a)' &&
+            p.proprietary_name === referenceProduct.proprietary_name)
+      )
     : [];
+
+  const deduped = Array.from(
+    new Map(
+      filtered.map((p) => [
+        `${p.proprietary_name.trim().toLowerCase()}|${p.applicant.trim().toLowerCase()}`,
+        p,
+      ])
+    ).values()
+  ).sort((a, b) => {
+    if (a.bla_type === '351(a)') return -1;
+    if (b.bla_type === '351(a)') return 1;
+    const aPres = presentationsMap[a.id]?.length || 0;
+    const bPres = presentationsMap[b.id]?.length || 0;
+    return bPres - aPres;
+  });
 
   const allPresentations = Array.from(
     new Set(
-      filtered.flatMap(p => (presentationsMap[p.id] || []).map(pr => pr.name))
+      deduped.flatMap((p) =>
+        (presentationsMap[p.id] || []).map((pres) => pres.name)
+      )
     )
   ).sort();
 
@@ -140,7 +144,7 @@ export default function FDAApprovalOverview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((product) => (
+                  {deduped.map((product) => (
                     <tr
                       key={product.id}
                       className={product.bla_type === '351(a)' ? 'reference-product-row' : ''}
@@ -148,28 +152,29 @@ export default function FDAApprovalOverview() {
                       <td>{product.proprietary_name}</td>
                       <td>{product.applicant}</td>
                       {allPresentations.map((pres, idx) => {
-                        const match = (presentationsMap[product.id] || []).find(p => p.name === pres);
+                        const match = (presentationsMap[product.id] || []).find(
+                          (p) => p.name === pres
+                        );
+
                         let cls = 'status-unknown';
-                        if (match) {
-                          if (product.bla_type === '351(a)') {
-                            cls = 'status-reference';
-                          } else if (match.marketing_status === 'Discontinued') {
+                        let label = '';
+
+                        if (product.bla_type === '351(a)') {
+                          cls = 'status-reference';
+                          label = 'R';
+                        } else if (match) {
+                          if (match.marketing_status === 'Discontinued') {
                             cls = 'status-discontinued';
-                          } else if (!match.approved) {
-                            cls = 'status-unknown';
-                          } else if (product.bla_type?.toLowerCase().includes('interchangeable')) {
+                            label = 'D';
+                          } else if (product.bla_type.toLowerCase().includes('interchangeable')) {
                             cls = 'status-interchangeable';
+                            label = 'I';
                           } else {
                             cls = 'status-biosimilar';
+                            label = 'B';
                           }
                         }
-                        const label = product.bla_type === '351(a)'
-                          ? 'R'
-                          : match?.marketing_status === 'Discontinued'
-                          ? 'D'
-                          : product.bla_type?.toLowerCase().includes('interchangeable')
-                          ? 'I'
-                          : 'B';
+
                         return (
                           <td key={idx}>
                             <span className={`cell-status-label ${cls}`}>{match ? label : ''}</span>
@@ -191,3 +196,4 @@ export default function FDAApprovalOverview() {
     </div>
   );
 }
+
