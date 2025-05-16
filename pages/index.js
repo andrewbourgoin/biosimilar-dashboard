@@ -96,81 +96,86 @@ export default function FDAApprovalOverview() {
     setError(null);
 
     try {
-      // Find the selected master reference product entry
+      // Find the selected master reference product entry from the reference_products table
       const selectedMasterRefProduct = allReferenceProductsMaster.find(
         rp => rp.ref_product_proprietary_name === selectedMarketTile
       );
       if (!selectedMasterRefProduct) throw new Error(`Master reference product ${selectedMarketTile} not found.`);
 
-      // Find the actual reference product entry in the 'products' table
+      // Find the actual reference product entry in the 'products' table (the 351(a) product)
       const actualRefProductEntry = allProducts.find(
         p => p.proprietary_name === selectedMarketTile && p.bla_type === "351(a)"
       );
       if (!actualRefProductEntry) throw new Error(`Actual reference product entry for ${selectedMarketTile} (351(a)) not found in products table.`);
 
-      // 1. Determine Dynamic Table Headers (Presentations of the selected Reference Product)
-      const refProductPresentationsDetails = allProductDetails.filter(
-        pd => pd.product_id === actualRefProductEntry.product_id
-      );
-      
-      const uniquePresentations = Array.from(
-        new Set(
-          refProductPresentationsDetails.map(pd => `${pd.Strength} ${pd.product_presentation}`.trim())
-        )
-      ).sort(); 
-      setTableHeaders(uniquePresentations);
-
-      // 2. Prepare Table Rows
-      const rows = [];
-
-      // 2a. Add the Reference Product Row
-      const refApplicant = allApplicants.find(app => app.applicant_id === actualRefProductEntry.applicant_id);
-      const refRow = {
-        isReference: true,
-        proprietaryName: actualRefProductEntry.proprietary_name,
-        applicantName: refApplicant ? refApplicant.Applicant : "N/A",
-        presentations: {},
-      };
-      uniquePresentations.forEach(header => {
-        const detail = refProductPresentationsDetails.find(pd => `${pd.Strength} ${pd.product_presentation}`.trim() === header);
-        refRow.presentations[header] = detail ? "R" : ""; // Black R
-      });
-      rows.push(refRow);
-
-      // 2b. Add Biosimilar/Interchangeable Rows
-      const relatedBiosimilars = allProducts.filter(
+      // Get all biosimilars/interchangeables for the selected reference product
+      const relatedBiosimilarsAndInterchangeables = allProducts.filter(
         p => p.ref_product_id === selectedMasterRefProduct.ref_product_id && 
-             p.product_id !== actualRefProductEntry.product_id && // Exclude the ref product itself
+             p.product_id !== actualRefProductEntry.product_id && // Exclude the ref product itself if it also has a ref_product_id (shouldn't for 351(a))
              p.bla_type && (p.bla_type.includes("351(k) Biosimilar") || p.bla_type.includes("351(k) Interchangeable"))
       );
 
-      relatedBiosimilars.forEach(bioProduct => {
-        const bioApplicant = allApplicants.find(app => app.applicant_id === bioProduct.applicant_id);
-        const bioRow = {
-          isReference: false,
-          proprietaryName: bioProduct.proprietary_name,
-          applicantName: bioApplicant ? bioApplicant.Applicant : "N/A",
-          presentations: {},
-        };
-        const bioProductDetails = allProductDetails.filter(pd => pd.product_id === bioProduct.product_id);
-        
-        uniquePresentations.forEach(header => {
-          const detail = bioProductDetails.find(pd => `${pd.Strength} ${pd.product_presentation}`.trim() === header);
-          if (detail) {
-            if (detail.marketing_status === "Disc" || detail.marketing_status === "Discontinued") {
-              bioRow.presentations[header] = "d"; // Grey d
-            } else if (bioProduct.bla_type.includes("351(k) Interchangeable")) {
-              bioRow.presentations[header] = "I"; // Green I
-            } else if (bioProduct.bla_type.includes("351(k) Biosimilar")) {
-              bioRow.presentations[header] = "B"; // Blue B
-            }
-          } else {
-            bioRow.presentations[header] = "";
-          }
-        });
-        rows.push(bioRow);
+      // 1. Determine Dynamic Table Headers: Union of presentations from Ref Product AND all its Biosimilars/Interchangeables
+      let allPresentationDetailsForMarket = [];
+      // Add presentations of the reference product itself
+      allPresentationDetailsForMarket.push(...allProductDetails.filter(pd => pd.product_id === actualRefProductEntry.product_id));
+      // Add presentations of all its biosimilars/interchangeables
+      relatedBiosimilarsAndInterchangeables.forEach(bioP => {
+        allPresentationDetailsForMarket.push(...allProductDetails.filter(pd => pd.product_id === bioP.product_id));
       });
       
+      const uniquePresentationsForHeaders = Array.from(
+        new Set(
+          allPresentationDetailsForMarket.map(pd => `${pd.Strength} ${pd.product_presentation}`.trim())
+        )
+      ).sort(); // Sort for consistent header order
+      setTableHeaders(uniquePresentationsForHeaders);
+
+      // 2. Prepare Table Rows
+      const rows = [];
+      const productsToDisplay = [actualRefProductEntry, ...relatedBiosimilarsAndInterchangeables];
+      const processedProductIds = new Set(); // To ensure each product appears once
+
+      productsToDisplay.forEach(productEntry => {
+        if (processedProductIds.has(productEntry.product_id)) return; // Skip if already processed (handles Tyenne like cases)
+
+        const applicant = allApplicants.find(app => app.applicant_id === productEntry.applicant_id);
+        const productSpecificDetails = allProductDetails.filter(pd => pd.product_id === productEntry.product_id);
+
+        const row = {
+          isReference: productEntry.bla_type === "351(a)",
+          proprietaryName: productEntry.proprietary_name,
+          applicantName: applicant ? applicant.Applicant : "N/A",
+          presentations: {},
+        };
+
+        uniquePresentationsForHeaders.forEach(header => {
+          const detail = productSpecificDetails.find(pd => `${pd.Strength} ${pd.product_presentation}`.trim() === header);
+          if (detail) {
+            if (detail.marketing_status === "Disc" || detail.marketing_status === "Discontinued") {
+              row.presentations[header] = "d"; // Grey d
+            } else if (productEntry.bla_type === "351(a)") {
+              row.presentations[header] = "R"; // Black R
+            } else if (productEntry.bla_type.includes("351(k) Interchangeable")) {
+              row.presentations[header] = "I"; // Green I
+            } else if (productEntry.bla_type.includes("351(k) Biosimilar")) {
+              row.presentations[header] = "B"; // Blue B
+            }
+          } else {
+            row.presentations[header] = ""; // Blank if no matching presentation for this product
+          }
+        });
+        rows.push(row);
+        processedProductIds.add(productEntry.product_id);
+      });
+      
+      // Ensure reference product is always first if present
+      rows.sort((a, b) => {
+        if (a.isReference && !b.isReference) return -1;
+        if (!a.isReference && b.isReference) return 1;
+        return a.proprietaryName.localeCompare(b.proprietaryName); // Then sort by name
+      });
+
       setTableRows(rows);
 
     } catch (err) {
@@ -183,7 +188,7 @@ export default function FDAApprovalOverview() {
     }
   }, [selectedMarketTile, allProducts, allProductDetails, allApplicants, allReferenceProductsMaster]);
 
-  if (error && !loading) { // Show general error if initial load failed, or specific error if processing tile failed
+  if (error && !loading && marketTiles.length === 0) { // Show general error if initial load failed and no tiles
     return (
       <div className="page-wrapper">
          <header className="header">
@@ -196,7 +201,7 @@ export default function FDAApprovalOverview() {
         </header>
         <main className="main-content-area">
             <div className="error-container">
-                <h2>Error Loading Data</h2>
+                <h2>Error Loading Initial Data</h2>
                 <p>{error}</p>
                 <button onClick={() => window.location.reload()}>Try Again</button>
             </div>
@@ -210,11 +215,9 @@ export default function FDAApprovalOverview() {
     <div className="page-wrapper">
       <header className="header">
         <div className="logo-container">
-          {/* Replace with your actual logo if available, or a placeholder */}
           <img src="/placeholder-logo.jpg" alt="All Things Biosimilar Logo" className="logo-image" />
         </div>
         <nav className="navigation-menu">
-          {/* You can add actual navigation links here if needed */}
           <span className="menu-placeholder">FDA Approval Overview</span>
         </nav>
       </header>
@@ -253,7 +256,7 @@ export default function FDAApprovalOverview() {
               </button>
             ))
           ) : (
-             !loading && <div className="no-data-message">No reference products with biosimilars found.</div>
+             !loading && !error && <div className="no-data-message">No reference products with biosimilars found.</div>
           )}
         </section>
 
@@ -283,7 +286,7 @@ export default function FDAApprovalOverview() {
                 </thead>
                 <tbody>
                   {tableRows.map((row, rowIndex) => (
-                    <tr key={rowIndex} style={{ backgroundColor: row.isReference ? "#f0f0f0" : "white" }}>
+                    <tr key={`${row.proprietaryName}-${rowIndex}`} style={{ backgroundColor: row.isReference ? "#f0f0f0" : "white" }}>
                       <td>{row.proprietaryName}</td>
                       <td>{row.applicantName}</td>
                       {tableHeaders.map((header) => {
@@ -306,7 +309,7 @@ export default function FDAApprovalOverview() {
               </table>
             </div>
           ) : selectedMarketTile && !loading && !error ? (
-            <div className="no-data-message">No data available for {selectedMarketTile}.</div>
+            <div className="no-data-message">No data available for {selectedMarketTile}. This may mean it has no biosimilars with presentations, or its own presentations are not listed in the data.</div>
           ) : null}
         </section>
       </main>
