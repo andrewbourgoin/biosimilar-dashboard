@@ -21,6 +21,7 @@ export default function FDAApprovalOverview() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentMarketError, setCurrentMarketError] = useState(null);
 
   // Initial data fetch for all necessary tables
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function FDAApprovalOverview() {
       try {
         setLoading(true);
         setError(null);
+        setCurrentMarketError(null);
 
         const { data: applicantsData, error: applicantsError } = await supabase
           .from("applicants")
@@ -90,56 +92,69 @@ export default function FDAApprovalOverview() {
     if (!selectedMarketTile || allProducts.length === 0 || allProductDetails.length === 0 || allApplicants.length === 0 || allReferenceProductsMaster.length === 0) {
       setTableHeaders([]);
       setTableRows([]);
+      if (selectedMarketTile && !loading) setCurrentMarketError("Required data not fully loaded to display market.");
       return;
     }
     setLoading(true);
-    setError(null);
+    setCurrentMarketError(null);
 
     try {
-      // Find the selected master reference product entry from the reference_products table
       const selectedMasterRefProduct = allReferenceProductsMaster.find(
         rp => rp.ref_product_proprietary_name === selectedMarketTile
       );
-      if (!selectedMasterRefProduct) throw new Error(`Master reference product ${selectedMarketTile} not found.`);
+      if (!selectedMasterRefProduct) {
+        throw new Error(`Master reference product ${selectedMarketTile} not found in reference_products table.`);
+      }
 
-      // Find the actual reference product entry in the 'products' table (the 351(a) product)
       const actualRefProductEntry = allProducts.find(
         p => p.proprietary_name === selectedMarketTile && p.bla_type === "351(a)"
       );
-      if (!actualRefProductEntry) throw new Error(`Actual reference product entry for ${selectedMarketTile} (351(a)) not found in products table.`);
+      if (!actualRefProductEntry) {
+        throw new Error(`Actual reference product entry for ${selectedMarketTile} (351(a)) not found in products table.`);
+      }
 
-      // Get all biosimilars/interchangeables for the selected reference product
       const relatedBiosimilarsAndInterchangeables = allProducts.filter(
         p => p.ref_product_id === selectedMasterRefProduct.ref_product_id && 
-             p.product_id !== actualRefProductEntry.product_id && // Exclude the ref product itself if it also has a ref_product_id (shouldn't for 351(a))
+             p.product_id !== actualRefProductEntry.product_id &&
              p.bla_type && (p.bla_type.includes("351(k) Biosimilar") || p.bla_type.includes("351(k) Interchangeable"))
       );
 
-      // 1. Determine Dynamic Table Headers: Union of presentations from Ref Product AND all its Biosimilars/Interchangeables
       let allPresentationDetailsForMarket = [];
-      // Add presentations of the reference product itself
-      allPresentationDetailsForMarket.push(...allProductDetails.filter(pd => pd.product_id === actualRefProductEntry.product_id));
-      // Add presentations of all its biosimilars/interchangeables
+      const refProductPresentations = allProductDetails.filter(pd => pd.product_id === actualRefProductEntry.product_id);
+      allPresentationDetailsForMarket.push(...refProductPresentations);
+      
       relatedBiosimilarsAndInterchangeables.forEach(bioP => {
         allPresentationDetailsForMarket.push(...allProductDetails.filter(pd => pd.product_id === bioP.product_id));
       });
       
       const uniquePresentationsForHeaders = Array.from(
         new Set(
-          allPresentationDetailsForMarket.map(pd => `${pd.Strength} ${pd.product_presentation}`.trim())
+          allPresentationDetailsForMarket
+            .map(pd => `${pd.Strength || ""} ${pd.product_presentation || ""}`.trim())
+            .filter(p => p !== "") // Filter out empty presentation strings
         )
-      ).sort(); // Sort for consistent header order
+      ).sort(); 
       setTableHeaders(uniquePresentationsForHeaders);
 
-      // 2. Prepare Table Rows
+      if (uniquePresentationsForHeaders.length === 0 && refProductPresentations.length === 0 && relatedBiosimilarsAndInterchangeables.length === 0) {
+         // This condition handles Xolair if it truly has no presentations for itself or biosimilars
+         // However, Xolair should have Omlyclo, so this might indicate deeper data issues if hit for Xolair
+         setTableRows([]);
+         throw new Error(`No presentations found for ${selectedMarketTile} or its biosimilars.`);
+      }
+
       const rows = [];
       const productsToDisplay = [actualRefProductEntry, ...relatedBiosimilarsAndInterchangeables];
-      const processedProductIds = new Set(); // To ensure each product appears once
+      const processedProductProprietaryNames = new Set(); // Use proprietary name for de-duplication for display
 
       productsToDisplay.forEach(productEntry => {
-        if (processedProductIds.has(productEntry.product_id)) return; // Skip if already processed (handles Tyenne like cases)
+        // Consolidate by proprietary name for display purposes (e.g. Tyenne)
+        if (processedProductProprietaryNames.has(productEntry.proprietary_name)) return;
 
         const applicant = allApplicants.find(app => app.applicant_id === productEntry.applicant_id);
+        
+        // Get all product_id(s) for this proprietary_name (e.g. Tyenne might have multiple product_ids if data was structured that way)
+        // For this schema, each product_id is unique, so we find all details for this product_id.
         const productSpecificDetails = allProductDetails.filter(pd => pd.product_id === productEntry.product_id);
 
         const row = {
@@ -150,45 +165,52 @@ export default function FDAApprovalOverview() {
         };
 
         uniquePresentationsForHeaders.forEach(header => {
-          const detail = productSpecificDetails.find(pd => `${pd.Strength} ${pd.product_presentation}`.trim() === header);
+          const detail = productSpecificDetails.find(pd => `${pd.Strength || ""} ${pd.product_presentation || ""}`.trim() === header);
           if (detail) {
             if (detail.marketing_status === "Disc" || detail.marketing_status === "Discontinued") {
-              row.presentations[header] = "d"; // Grey d
+              row.presentations[header] = "d";
             } else if (productEntry.bla_type === "351(a)") {
-              row.presentations[header] = "R"; // Black R
-            } else if (productEntry.bla_type.includes("351(k) Interchangeable")) {
-              row.presentations[header] = "I"; // Green I
-            } else if (productEntry.bla_type.includes("351(k) Biosimilar")) {
-              row.presentations[header] = "B"; // Blue B
+              row.presentations[header] = "R";
+            } else if (productEntry.bla_type && productEntry.bla_type.includes("351(k) Interchangeable")) {
+              row.presentations[header] = "I";
+            } else if (productEntry.bla_type && productEntry.bla_type.includes("351(k) Biosimilar")) {
+              row.presentations[header] = "B";
+            } else {
+              row.presentations[header] = ""; // Should not happen if BLA type is known
             }
           } else {
-            row.presentations[header] = ""; // Blank if no matching presentation for this product
+            row.presentations[header] = ""; 
           }
         });
         rows.push(row);
-        processedProductIds.add(productEntry.product_id);
+        processedProductProprietaryNames.add(productEntry.proprietary_name);
       });
       
-      // Ensure reference product is always first if present
       rows.sort((a, b) => {
         if (a.isReference && !b.isReference) return -1;
         if (!a.isReference && b.isReference) return 1;
-        return a.proprietaryName.localeCompare(b.proprietaryName); // Then sort by name
+        return a.proprietaryName.localeCompare(b.proprietaryName);
       });
 
+      if (rows.length === 0 && uniquePresentationsForHeaders.length > 0) {
+        // This means headers were formed, but no products matched them, or no products to display.
+        // This could be the case for Xolair if its own presentations are missing from product_details, or Omlyclo's are.
+        throw new Error(`No product rows could be generated for ${selectedMarketTile} despite having presentation headers. Check product_details data.`);
+      }
       setTableRows(rows);
 
     } catch (err) {
       console.error(`Error processing data for ${selectedMarketTile}:`, err);
-      setError(err.message);
+      setCurrentMarketError(err.message);
       setTableRows([]);
-      setTableHeaders([]);
+      // Keep headers if they were generated, to give context to the error
+      // setTableHeaders([]); 
     } finally {
       setLoading(false);
     }
   }, [selectedMarketTile, allProducts, allProductDetails, allApplicants, allReferenceProductsMaster]);
 
-  if (error && !loading && marketTiles.length === 0) { // Show general error if initial load failed and no tiles
+  if (error && !loading && marketTiles.length === 0) {
     return (
       <div className="page-wrapper">
          <header className="header">
@@ -243,7 +265,7 @@ export default function FDAApprovalOverview() {
         </section>
 
         <section className="market-selection-area">
-          {loading && marketTiles.length === 0 ? (
+          {loading && marketTiles.length === 0 && !error ? (
             <div className="loading-indicator">Loading reference products...</div>
           ) : marketTiles.length > 0 ? (
             marketTiles.map((tileName) => (
@@ -267,10 +289,10 @@ export default function FDAApprovalOverview() {
               <div className="loading-spinner"></div>
               <p>Loading product data for {selectedMarketTile}...</p>
             </div>
-          ) : error && selectedMarketTile ? (
+          ) : currentMarketError && selectedMarketTile ? (
              <div className="error-container">
                 <h2>Error Loading Data for {selectedMarketTile}</h2>
-                <p>{error}</p>
+                <p>{currentMarketError}</p>
             </div>
           ) : tableRows.length > 0 && tableHeaders.length > 0 ? (
             <div className="table-container">
@@ -308,8 +330,8 @@ export default function FDAApprovalOverview() {
                 </tbody>
               </table>
             </div>
-          ) : selectedMarketTile && !loading && !error ? (
-            <div className="no-data-message">No data available for {selectedMarketTile}. This may mean it has no biosimilars with presentations, or its own presentations are not listed in the data.</div>
+          ) : selectedMarketTile && !loading && !currentMarketError ? (
+            <div className="no-data-message">No data available for {selectedMarketTile}.</div>
           ) : null}
         </section>
       </main>
