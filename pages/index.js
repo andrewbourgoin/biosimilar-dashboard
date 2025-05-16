@@ -1,4 +1,4 @@
-// FDA Approval Overview – Rebuilt to match cleaned Supabase structure
+// FDA Approval Overview – Enhanced version with error handling and filtering
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -14,37 +14,70 @@ export default function FDAApprovalOverview() {
   const [referenceProducts, setReferenceProducts] = useState([]);
   const [selectedRef, setSelectedRef] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function fetchData() {
-      const { data: productsData } = await supabase
-        .from('biosimilar_products')
-        .select('*');
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Get all products
+        const { data: productsData, error: productsError } = await supabase
+          .from('biosimilar_products')
+          .select('*');
+          
+        if (productsError) throw new Error(`Error fetching products: ${productsError.message}`);
+        
+        // Get all presentations
+        const { data: presentationsData, error: presentationsError } = await supabase
+          .from('presentations')
+          .select('*');
+          
+        if (presentationsError) throw new Error(`Error fetching presentations: ${presentationsError.message}`);
+        
+        // Find reference products that have biosimilars
+        const referenceSet = new Set();
+        const biosimilarReferenceProducts = new Set();
+        
+        // First identify all reference products
+        const referenceProducts = productsData.filter(p => p.bla_type === '351(a)');
+        
+        // Then identify which reference products have biosimilars
+        productsData.forEach(product => {
+          if (product.bla_type.includes('351(k)')) {
+            biosimilarReferenceProducts.add(product.reference_product);
+          }
+        });
+        
+        // Only include reference products that have biosimilars
+        referenceProducts.forEach(refProduct => {
+          if (biosimilarReferenceProducts.has(refProduct.reference_product)) {
+            referenceSet.add(refProduct.proprietary_name);
+          }
+        });
+        
+        const referenceArray = Array.from(referenceSet);
+        
+        // Group presentations by product_id
+        const grouped = presentationsData?.reduce((acc, pres) => {
+          if (!acc[pres.product_id]) acc[pres.product_id] = [];
+          acc[pres.product_id].push(pres);
+          return acc;
+        }, {});
 
-      const { data: presentationsData } = await supabase
-        .from('presentations')
-        .select('*');
-
-      const referenceSet = Array.from(
-        new Set(
-          productsData
-            .filter(p => p.bla_type === '351(a)')
-            .map(p => p.proprietary_name)
-        )
-      );
-
-      const grouped = presentationsData?.reduce((acc, pres) => {
-        if (!acc[pres.product_id]) acc[pres.product_id] = [];
-        acc[pres.product_id].push(pres);
-        return acc;
-      }, {});
-
-      setProducts(productsData || []);
-      setPresentationsMap(grouped || {});
-      setReferenceProducts(referenceSet);
-      setSelectedRef(referenceSet[0] || '');
-      setLoading(false);
+        setProducts(productsData || []);
+        setPresentationsMap(grouped || {});
+        setReferenceProducts(referenceArray);
+        setSelectedRef(referenceArray[0] || '');
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     }
+    
     fetchData();
   }, []);
 
@@ -84,6 +117,16 @@ export default function FDAApprovalOverview() {
     )
   ).sort();
 
+  if (error) {
+    return (
+      <div className="error-container">
+        <h2>Error Loading Data</h2>
+        <p>{error}</p>
+        <button onClick={() => window.location.reload()}>Try Again</button>
+      </div>
+    );
+  }
+
   return (
     <div className="page-wrapper">
       <header className="header">
@@ -116,21 +159,28 @@ export default function FDAApprovalOverview() {
         </div>
 
         <div className="market-selection-area">
-          {referenceProducts.map((ref, idx) => (
-            <button
-              key={idx}
-              className={`market-tile ${ref === selectedRef ? 'active' : ''}`}
-              onClick={() => setSelectedRef(ref)}
-            >
-              {ref}
-            </button>
-          ))}
+          {loading ? (
+            <div className="loading-indicator">Loading reference products...</div>
+          ) : (
+            referenceProducts.map((ref, idx) => (
+              <button
+                key={idx}
+                className={`market-tile ${ref === selectedRef ? 'active' : ''}`}
+                onClick={() => setSelectedRef(ref)}
+              >
+                {ref}
+              </button>
+            ))
+          )}
         </div>
 
         <div className="main-content-area">
           <h1>{selectedRef} Market FDA Approval Overview</h1>
           {loading ? (
-            <p>Loading...</p>
+            <div className="loading-container">
+              <div className="loading-spinner"></div>
+              <p>Loading product data...</p>
+            </div>
           ) : (
             <div className="table-container">
               <table id="comparison-table">
@@ -163,7 +213,7 @@ export default function FDAApprovalOverview() {
                           cls = 'status-reference';
                           label = 'R';
                         } else if (match) {
-                          if (match.marketing_status === 'Discontinued') {
+                          if (match.marketing_status === 'Discontinued' || match.marketing_status === 'Disc') {
                             cls = 'status-discontinued';
                             label = 'D';
                           } else if (product.bla_type.toLowerCase().includes('interchangeable')) {
@@ -196,3 +246,4 @@ export default function FDAApprovalOverview() {
     </div>
   );
 }
+

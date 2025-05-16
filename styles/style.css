@@ -1,409 +1,107 @@
-/* General Body and Font Styling */
-body {
-    font-family: 'Inter', Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #E9ECEF; /* Darker neutral page background */
-    color: #2C3E50; /* Dark desaturated blue for text */
-    line-height: 1.7;
+/* Loading states */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
 }
 
-header {
-    width: 100%;
-    padding: 15px 25px; /* Increased padding */
-    border-bottom: 1px solid #DEE2E6; /* Subtle divider */
-    margin-bottom: 25px; /* Increased margin */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-sizing: border-box;
-    background-color: #FFFFFF; /* White header background */
+.loading-spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #3498db;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
 }
 
-.logo-container {}
-
-.logo-image {
-    height: 60px; /* Increased from 50px */
-    width: auto;
-    display: block;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-.navigation-menu {
-    font-size: 0.9em;
-    color: #2C3E50;
+.loading-indicator {
+  padding: 1rem;
+  text-align: center;
+  color: #666;
+  font-style: italic;
 }
 
-.menu-placeholder {
-    padding: 5px 10px;
-    border: 1px dashed #2C3E50;
+/* Error states */
+.error-container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 8px;
+  text-align: center;
 }
 
-main {
-    width: 100%;
-    max-width: 1200px;
-    padding: 0;
-    background-color: transparent; /* Main remains transparent, children will have backgrounds */
-    box-sizing: border-box;
-    margin: 0 auto 25px auto; /* Increased bottom margin */
+.error-container h2 {
+  color: #e53e3e;
+  margin-bottom: 1rem;
 }
 
-/* Intro Section Styling */
-.intro-section {
-    background-color: #FFFFFF; /* White content background */
-    padding: 30px 25px; /* Generous padding */
-    margin-bottom: 30px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    display: flex; /* For side-by-side logo and text */
-    align-items: flex-start; /* Align items to the top */
-    gap: 25px; /* Space between logo and text */
+.error-container button {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 1rem;
 }
 
-.intro-logo-container {
-    flex-shrink: 0; /* Prevent logo from shrinking */
+.error-container button:hover {
+  background-color: #2b6cb0;
 }
 
-.intro-logo-image {
-    height: 100px; /* Increased from 80px */
-    width: auto;
-    display: block;
-}
-
-.intro-text-container h2 {
-    font-size: 1.6em;
-    font-weight: 600;
-    color: #2C3E50;
-    margin-top: 0;
-    margin-bottom: 15px;
-}
-
-.intro-text-container p {
-    font-size: 1em;
-    line-height: 1.7;
-    margin-bottom: 20px;
-}
-
-.legend-container h3 {
-    font-size: 1.1em;
-    font-weight: 600;
-    color: #2C3E50;
-    margin-top: 0;
-    margin-bottom: 10px;
-}
-
-.legend-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    gap: 15px; /* Space between legend items */
-}
-
-.legend-list li {
-    font-size: 0.9em;
-    display: flex;
-    align-items: center;
-    gap: 8px; /* Space between label and text */
-}
-
-.market-selection-area {
-    margin-bottom: 30px;
-    padding: 25px; /* Increased padding */
-    background-color: #FFFFFF; /* White content background */
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    display: flex;
-    gap: 12px; /* Increased gap */
-    flex-wrap: wrap;
-}
-
-.market-tile {
-    font-family: 'Inter', Arial, sans-serif;
-    padding: 10px 18px; /* Increased padding */
-    border: 1px solid #B0B0B0;
-    background-color: #FFFFFF;
-    color: #2C3E50;
-    cursor: pointer;
-    font-size: 0.9em;
-    font-weight: 500; /* Medium weight */
-    border-radius: 6px; /* Softer radius */
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
-}
-
-.market-tile.active, .market-tile:hover {
-    background-color: #1A88E0; /* Deeper blue */
-    color: #FFFFFF;
-    border-color: #1A88E0;
-    box-shadow: 0 2px 8px rgba(26, 136, 224, 0.3); /* Subtle shadow on hover/active */
-}
-
-.market-tile:disabled {
-    background-color: #E9ECEF;
-    color: #A0A0A0;
-    cursor: not-allowed;
-    border-color: #DEE2E6;
-}
-
-.main-content-area {
-    background-color: #FFFFFF; /* White content background */
-    padding: 25px; /* Increased padding */
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.07);
-}
-
-.main-content-area h1 {
-    font-size: 1.8em; /* Increased size */
-    font-weight: 600; /* Semi-bold */
-    color: #2C3E50;
-    margin-top: 0;
-    margin-bottom: 25px; /* Increased margin */
-}
-
-.table-container {
-    overflow-x: auto;
-}
-
-#comparison-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 0;
-    font-size: 0.9em;
-    /* table-layout: fixed; */ /* Keep commented out for now */
-}
-
-#comparison-table th, #comparison-table td {
-    padding: 12px 8px; /* Increased padding */
-    border-bottom: 1px solid #DEE2E6; /* Lighter border */
-    white-space: normal; 
-    vertical-align: middle;
-    line-height: 1.5; /* Improved line height for table cells */
-}
-
-#comparison-table th {
-    background-color: #2C3E50; /* Dark desaturated blue for table header */
-    color: #FFFFFF;
-    font-weight: 600; /* Semi-bold for header text */
-    text-align: left; 
-    vertical-align: top; 
-}
-
-#comparison-table th:nth-child(1),
-#comparison-table th:nth-child(2) {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-#comparison-table th:nth-child(n+3) {
-    text-align: center;
-    vertical-align: middle;
-}
-
-#comparison-table th.empty-header {
-    background-color: #FFFFFF !important;
-    border-bottom: 1px solid #DEE2E6 !important;
-    border-left: none; 
-    border-right: none;
-    color: transparent;
-}
-
-#comparison-table th:nth-child(1), 
-#comparison-table td:nth-child(1) { 
-    width: 18%; 
-    min-width: 100px;
-    text-align: left;
-    white-space: nowrap; 
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: table-cell !important;
-}
-
-#comparison-table th:nth-child(2), 
-#comparison-table td:nth-child(2) { 
-    width: 28%;
-    min-width: 150px;
-    text-align: left;
-    white-space: nowrap; 
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: table-cell !important;
-}
-
-#comparison-table th:nth-child(n+3), 
-#comparison-table td:nth-child(n+3) {
-    width: 130px; /* Adjusted for full header readability */ 
-    text-align: center;
-}
-
-#comparison-table .reference-product-row {
-    background-color: #F0F2F5; /* Slightly adjusted darker background for reference */
-}
-
-#comparison-table .reference-product-row td:first-child {
-    font-weight: 600; /* Semi-bold for reference product name */
-}
-
-#comparison-table td.empty-padding-cell {
-    background-color: #FFFFFF !important; /* Match main content background, override reference row bg */
-    border-bottom: 1px solid #FFFFFF !important; /* Remove bottom border or match background */
-    border-left: none;
-    border-right: none;
-}
-
-/* Feature Header Styling */
-#comparison-table th .feature-header-strength {
-    display: block;
-    font-size: 0.8em; /* Adjusted size */ 
-    line-height: 1.3;
-    white-space: normal;
-    margin-bottom: 3px;
-}
-
-#comparison-table th .feature-header-presentation-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-}
-
-/* Icons removed from header, so this class might not be used or can be removed if no other icons in header */
-#comparison-table th .feature-header-icon {
-    display: none; /* Hide header icons */
-}
-
-#comparison-table th .feature-header-presentation-abbr {
-    display: inline;
-    font-size: 0.85em; /* Adjusted size */ 
-    line-height: 1.3;
-    white-space: normal;
-}
-
-/* Cell Status Label Styling */
-.cell-status-label {
-    display: inline-block;
-    padding: 3px 7px; /* Slightly increased padding */
-    border-radius: 4px; /* Softer radius */
-    font-size: 0.78em; /* Adjusted font size */
-    font-weight: 500; /* Medium weight */
-    line-height: 1.2; /* Adjusted line height */
-    text-align: center;
-    min-width: auto; 
-    white-space: nowrap; 
+/* Enhanced BLA type styling */
+.reference-product-row {
+  background-color: #f0f7ff;
+  font-weight: 600;
 }
 
 .status-reference {
-    color: #FFFFFF;
-    background-color: #343A40; /* Darker grey for reference, distinct from header */
+  background-color: #2c5282;
 }
 
 .status-biosimilar {
-    color: #FFFFFF;
-    background-color: #1A88E0; /* Consistent deeper blue */
+  background-color: #38a169;
 }
 
 .status-interchangeable {
-    color: #FFFFFF;
-    background-color: #28a745; /* Green */
+  background-color: #805ad5;
 }
 
 .status-discontinued {
-    color: #FFFFFF;
-    background-color: #868E96; /* Softer grey for discontinued */
+  background-color: #e53e3e;
 }
 
-.status-unknown {
-    color: #2C3E50;
-    background-color: #E9ECEF; /* Light Grey for unknown */
-}
-
-.marketing-status { display: none; }
-
-footer {
-    width: 100%;
-    max-width: 1200px;
-    text-align: center;
-    padding: 25px; /* Increased padding */
-    margin: 40px auto 25px auto; /* Adjusted margins */
-    border-top: 1px solid #DEE2E6; /* Subtle divider */
-    font-size: 0.9em;
-    color: #495057; /* Softer grey for footer text */
-    box-sizing: border-box;
-    background-color: #FFFFFF; /* White footer background */
-}
-
-footer a {
-    color: #1A88E0; /* Consistent link color */
-    text-decoration: none;
-}
-
-footer a:hover {
-    text-decoration: underline;
-}
-
+/* Responsive improvements */
 @media (max-width: 768px) {
-    body {
-        line-height: 1.6;
-    }
-    header {
-        padding: 10px 15px;
-        margin-bottom: 20px;
-    }
-    .logo-image {
-        height: 30px;
-    }
-    .market-selection-area,
-    .main-content-area {
-        padding: 20px; /* Adjusted padding for mobile */
-        margin-left: 10px;
-        margin-right: 10px;
-    }
-    .market-selection-area {
-        flex-direction: column;
-        gap: 8px; /* Adjusted gap for mobile */
-    }
-    .market-tile {
-        width: 100%;
-        box-sizing: border-box;
-        margin-bottom: 8px; /* Increased margin for mobile */
-        font-size: 1em;
-        padding: 12px 15px; /* Adjusted padding for mobile */
-    }
-    #comparison-table th, #comparison-table td {
-        padding: 10px 5px; /* Adjusted padding for mobile */
-        font-size: 0.75em; /* Adjusted base font for table on mobile */
-        line-height: 1.4;
-    }
-    #comparison-table th:nth-child(1), 
-    #comparison-table td:nth-child(1),
-    #comparison-table th:nth-child(2), 
-    #comparison-table td:nth-child(2) {
-        min-width: 70px; /* Adjusted min-width for mobile */ 
-        width: auto; 
-        white-space: normal; 
-    }
-    #comparison-table th:nth-child(n+3), 
-    #comparison-table td:nth-child(n+3) {
-        min-width: 30px; /* Adjusted min-width for mobile */ 
-        width: auto;
-    }
-    .main-content-area h1 {
-        font-size: 1.5em; /* Adjusted for mobile */
-        margin-bottom: 20px;
-    }
-    #comparison-table th .feature-header-strength {
-        font-size: 0.75em;
-        margin-bottom: 2px;
-    }
-    #comparison-table th .feature-header-presentation-abbr {
-        font-size: 0.8em;
-    }
-    .cell-status-label {
-        font-size: 0.75em; 
-        padding: 2px 5px; 
-    }
-    footer {
-        padding: 20px;
-        margin-top: 30px;
-    }
+  .market-selection-area {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .market-tile {
+    width: calc(33.33% - 10px);
+    margin: 5px;
+    font-size: 0.8rem;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  #comparison-table th,
+  #comparison-table td {
+    padding: 8px 5px;
+    font-size: 0.8rem;
+  }
 }
